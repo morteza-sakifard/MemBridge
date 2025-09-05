@@ -12,22 +12,31 @@ class JSONMemoryStore:
 
     def __init__(self, file_path: str = "memory_store.json"):
         self.file_path = file_path
-        self._memories: Dict[str, Memory] = self._load()
+        self._memories: Dict[int, Memory] = self._load()
 
-    def _load(self) -> Dict[str, Memory]:
+    def _load(self) -> Dict[int, Memory]:
         """Loads memories from the JSON file if it exists."""
         if not os.path.exists(self.file_path):
             return {}
         try:
             with open(self.file_path, 'r') as f:
                 data = json.load(f)
-            return {mem['memory_id']: Memory(**mem) for mem in data}
+
+            memories: Dict[int, Memory] = {}
+            for mem_data in data:
+                try:
+                    memory = Memory(**mem_data)
+                    memories[memory.memory_id] = memory
+                except ValidationError as e:
+                    print(f"[Warning] Skipping invalid memory data: {mem_data}. Error: {e}")
+            return memories
         except (json.JSONDecodeError, IOError):
             return {}
 
     def _save(self):
         """Saves the current state of memories to the JSON file."""
         with open(self.file_path, 'w') as f:
+            # Convert Pydantic models to dicts before saving
             json.dump([mem.model_dump() for mem in self._memories.values()], f, indent=2)
 
     def write(self, memory: Memory):
@@ -44,7 +53,7 @@ class JSONMemoryStore:
         self._save()
         print(f"Memory '{memory.memory_id}' written to JSON store.")
 
-    def read(self, memory_id: str) -> Optional[Memory]:
+    def read(self, memory_id: int) -> Optional[Memory]:
         """
         Reads a single memory by its ID.
 
@@ -56,7 +65,7 @@ class JSONMemoryStore:
         """
         return self._memories.get(memory_id)
 
-    def update(self, memory_id: str, updates: Dict[str, Any]):
+    def update(self, memory_id: int, updates: Dict[str, Any]):
         """
         Updates an existing memory with new data.
 
@@ -92,10 +101,10 @@ class JSONConversationStore:
         """
         self.file_path = file_path
         # The internal representation remains a dictionary for efficient O(1) lookups.
-        self._conversations: Dict[str, Conversation] = self._load()
+        self._conversations: Dict[int, Conversation] = self._load()
         print(f"Store initialized. Loaded {len(self._conversations)} conversations from '{self.file_path}'.")
 
-    def _load(self) -> Dict[str, Conversation]:
+    def _load(self) -> Dict[int, Conversation]:
         """
         Loads conversations from a JSON file formatted as a list of objects.
 
@@ -113,13 +122,16 @@ class JSONConversationStore:
                     return {}
 
             # Convert the list into a dictionary for fast lookups, validating each item
-            conversations = {}
+            conversations: Dict[int, Conversation] = {}
             for conv_data in data_list:
-                conversation = Conversation(**conv_data)
-                conversations[conversation.conversation_id] = conversation
+                try:
+                    conversation = Conversation(**conv_data)
+                    conversations[conversation.conversation_id] = conversation
+                except ValidationError as e:
+                    print(f"[Warning] Skipping invalid conversation data: {conv_data}. Error: {e}")
             return conversations
 
-        except (json.JSONDecodeError, IOError, ValidationError) as e:
+        except (json.JSONDecodeError, IOError) as e:
             print(f"Error loading or parsing '{self.file_path}': {e}. Starting with an empty store.")
             return {}
 
@@ -146,7 +158,7 @@ class JSONConversationStore:
         self._save()
         print(f"Conversation '{conversation.conversation_id}' written to store.")
 
-    def read(self, conversation_id: str) -> Optional[Conversation]:
+    def read(self, conversation_id: int) -> Optional[Conversation]:
         """
         Reads a single conversation by its ID.
 
@@ -158,6 +170,6 @@ class JSONConversationStore:
         """
         return self._conversations.get(conversation_id)
 
-    def list_ids(self) -> List[str]:
+    def list_ids(self) -> List[int]:
         """Returns a list of all conversation IDs."""
         return list(self._conversations.keys())

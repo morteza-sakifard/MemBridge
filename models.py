@@ -9,18 +9,20 @@ class Turn(BaseModel):
     role: str
     content: str
 
+
 class Conversation(BaseModel):
     """Represents a full conversation with multiple turns and ground truth."""
-    conversation_id: str
+    conversation_id: int
     turns: List[Turn]
     ground_truth: dict
 
+
 class Memory(BaseModel):
     """Represents the final, structured memory object to be stored."""
-    memory_id: str
+    memory_id: int
     content: str
-    conversation_id: str
+    conversation_id: int
     turn_id: int
     confidence: float
     timestamp: str
-    previous_memory_id: Optional[str] = None
+    previous_memory_id: Optional[int] = None

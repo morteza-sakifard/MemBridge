@@ -1,6 +1,5 @@
 import json
 import os
-import uuid
 from datetime import datetime, timezone
 from typing import List, Dict, Any
 
@@ -92,6 +91,7 @@ def extract_memories_from_turn(conversation_history: List[Turn]) -> List[Dict[st
         response_content = response.choices[0].message.content
         print(f"<--- LLM Response: {response_content}")
 
+        # Safely parse the JSON response from the model
         response_data = json.loads(response_content)
         extracted_facts = response_data.get("facts", [])
         return extracted_facts
@@ -106,6 +106,10 @@ def main():
     conv_store = ConversationStore()
 
     print("Starting memory extraction process...")
+
+    # Find the highest existing memory ID to start new IDs from there
+    all_mem_ids = [mem.memory_id for mem in memory_store.get_all_memories()]
+    next_memory_id = max(all_mem_ids) + 1 if all_mem_ids else 1
 
     # Process each conversation
     for conv_id in conv_store.list_ids():
@@ -132,15 +136,16 @@ def main():
                         if mem.content == previous_value_text and mem.conversation_id == conv_id
                     ]
                     if matching_memories:
+                        # Sort by timestamp to find the most recent match
                         matching_memories.sort(key=lambda m: m.timestamp, reverse=True)
                         previous_memory_id = matching_memories[0].memory_id
                         print(f"--- Linked memory update. Previous memory '{previous_memory_id}' found.")
                     else:
-                         print(f"--- [Warning] LLM provided 'previous_value', but no matching memory was found for content: '{previous_value_text}'")
-
+                        print(
+                            f"--- [Warning] LLM provided 'previous_value', but no matching memory was found for content: '{previous_value_text}'")
 
                 memory = Memory(
-                    memory_id=f"mem_{uuid.uuid4()}",
+                    memory_id=next_memory_id,
                     content=fact['content'],
                     conversation_id=conv.conversation_id,
                     turn_id=turn.turn_id,
@@ -151,6 +156,7 @@ def main():
 
                 memory_store.write(memory)
                 print(f"+++ Stored new memory: {memory.content}")
+                next_memory_id += 1
 
     print("-----------------------------------------")
 
