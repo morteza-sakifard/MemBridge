@@ -2,12 +2,14 @@ import os
 import json
 import uuid
 from datetime import datetime, timezone
+from sqlite3 import converters
 from typing import List
 
 import openai
 from dotenv import load_dotenv
 from models import Conversation, Memory, Fact
 from store import JSONMemoryStore as MemoryStore
+from store import JSONConversationStore as ConversationStore
 
 load_dotenv()
 
@@ -20,7 +22,6 @@ except KeyError:
     raise ConnectionError("API key or base URL not found. Please check your config.env file.")
 
 MODEL_NAME = "gemini-2.5-pro"
-INPUT_DATA_PATH = "synthetic_data.json"
 
 SYSTEM_PROMPT = """
 You are an expert AI system designed to extract key facts from conversations. Your task is to identify new pieces of information or updates to existing information and structure them as memories.
@@ -105,33 +106,24 @@ def extract_memories_from_turn(conversation_history: List[dict]) -> List[Fact]:
 
 
 def main():
-    store = MemoryStore()
+    memory_store = MemoryStore()
+    conv_store = ConversationStore()
 
     print("Starting memory extraction process...")
 
-    # Load conversations from the input file
-    try:
-        with open(INPUT_DATA_PATH, 'r') as f:
-            conversations_data = json.load(f)
-        conversations = [Conversation(**conv) for conv in conversations_data]
-        print(f"Loaded {len(conversations)} conversations from '{INPUT_DATA_PATH}'.")
-    except (FileNotFoundError, json.JSONDecodeError) as e:
-        print(f"[FATAL] Could not load or parse input data file. Error: {e}")
-        return
-
     # Process each conversation
-    for conv in conversations:
+    for conv_id in conv_store.list_ids():
         print(f"\n=========================================")
-        print(f"Processing Conversation ID: {conv.conversation_id}")
+        print(f"Processing Conversation ID: {conv_id}")
         print(f"=========================================")
+
+        conv = conv_store.read(conv_id)
 
         turn_history = []
         for i, turn in enumerate(conv.turns, 1):
             turn_history.append(turn)
 
-            # Extract facts from the current state of the conversation
             extracted_facts = extract_memories_from_turn(turn_history)
-
             for fact in extracted_facts:
                 turn_identifier = f"conv_{conv.conversation_id}_turn_{i}"
                 memory = Memory(
@@ -143,7 +135,7 @@ def main():
                     previous_value=fact.previous_value
                 )
 
-                store.write(memory)
+                memory_store.write(memory)
                 print(f"+++ Stored new memory: {memory.content}")
 
     print("-----------------------------------------")

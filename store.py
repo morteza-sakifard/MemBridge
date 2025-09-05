@@ -2,10 +2,14 @@ import json
 import os
 from typing import List, Dict, Any, Optional
 
-from models import Memory
+from pydantic import ValidationError
+
+from models import Memory, Conversation
 
 
 class JSONMemoryStore:
+    """A simple memory store that uses a local JSON file for persistence."""
+
     def __init__(self, file_path: str = "memory_store.json"):
         self.file_path = file_path
         self._memories: Dict[str, Memory] = self._load()
@@ -76,3 +80,86 @@ class JSONMemoryStore:
     def get_all_memories(self) -> List[Memory]:
         """Returns all memories currently in the store."""
         return list(self._memories.values())
+
+
+class JSONConversationStore:
+    """A simple store for conversations using a key-value format in a JSON file."""
+
+    def __init__(self, file_path: str = "conversation_store.json"):
+        """
+        Initializes the store.
+
+        Args:
+            file_path: The path to the JSON file.
+        """
+        self.file_path = file_path
+        # The internal representation remains a dictionary for efficient O(1) lookups.
+        self._conversations: Dict[str, Conversation] = self._load()
+        print(f"Store initialized. Loaded {len(self._conversations)} conversations from '{self.file_path}'.")
+
+    def _load(self) -> Dict[str, Conversation]:
+        """
+        Loads conversations from a JSON file formatted as a list of objects.
+
+        Returns:
+            A dictionary mapping conversation_id to Conversation objects.
+        """
+        if not os.path.exists(self.file_path):
+            return {}
+        try:
+            with open(self.file_path, 'r', encoding='utf-8') as f:
+                # The file is expected to contain a list of conversation dicts
+                data_list = json.load(f)
+                if not isinstance(data_list, list):
+                    print(f"Warning: Data in '{self.file_path}' is not a list. Starting fresh.")
+                    return {}
+
+            # Convert the list into a dictionary for fast lookups, validating each item
+            conversations = {}
+            for conv_data in data_list:
+                conversation = Conversation(**conv_data)
+                conversations[conversation.conversation_id] = conversation
+            return conversations
+
+        except (json.JSONDecodeError, IOError, ValidationError) as e:
+            print(f"Error loading or parsing '{self.file_path}': {e}. Starting with an empty store.")
+            return {}
+
+    def _save(self):
+        """
+        Saves all conversations to the JSON file as a list of objects.
+        """
+        with open(self.file_path, 'w', encoding='utf-8') as f:
+            # Convert the dictionary of conversations back into a list for storage.
+            conversation_list = [conv.model_dump() for conv in self._conversations.values()]
+            json.dump(conversation_list, f, indent=2)
+
+    def write(self, conversation: Conversation):
+        """
+        Adds a new conversation or overwrites an existing one by its ID.
+
+        Args:
+            conversation: The Conversation object to add or update.
+        """
+        if not isinstance(conversation, Conversation):
+            raise TypeError("Can only write Conversation objects to the store.")
+
+        self._conversations[conversation.conversation_id] = conversation
+        self._save()
+        print(f"Conversation '{conversation.conversation_id}' written to store.")
+
+    def read(self, conversation_id: str) -> Optional[Conversation]:
+        """
+        Reads a single conversation by its ID.
+
+        Args:
+            conversation_id: The ID of the conversation to retrieve.
+
+        Returns:
+            The Conversation object if found, otherwise None.
+        """
+        return self._conversations.get(conversation_id)
+
+    def list_ids(self) -> List[str]:
+        """Returns a list of all conversation IDs."""
+        return list(self._conversations.keys())
