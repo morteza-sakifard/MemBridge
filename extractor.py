@@ -1,15 +1,15 @@
-import os
 import json
+import os
 import uuid
 from datetime import datetime, timezone
-from sqlite3 import converters
-from typing import List
+from typing import List, Dict, Any
 
 import openai
 from dotenv import load_dotenv
-from models import Conversation, Memory, Fact
-from store import JSONMemoryStore as MemoryStore
+
+from models import Memory, Turn
 from store import JSONConversationStore as ConversationStore
+from store import JSONMemoryStore as MemoryStore
 
 load_dotenv()
 
@@ -55,12 +55,12 @@ YOUR RESPONSE:
 """
 
 
-def format_conversation_for_prompt(turns: List[dict]) -> str:
+def format_conversation_for_prompt(turns: List[Turn]) -> str:
     """Formats the conversation history into a string for the LLM prompt."""
     return json.dumps([{"role": t.role, "content": t.content} for t in turns], indent=2)
 
 
-def extract_memories_from_turn(conversation_history: List[dict]) -> List[Fact]:
+def extract_memories_from_turn(conversation_history: List[Turn]) -> List[Dict[str, Any]]:
     """
     Calls the LLM API to extract facts from the latest turn of a conversation.
 
@@ -68,7 +68,7 @@ def extract_memories_from_turn(conversation_history: List[dict]) -> List[Fact]:
         conversation_history: A list of turn objects representing the conversation so far.
 
     Returns:
-        A list of Fact objects, or an empty list if none are found or an error occurs.
+        A list of fact dictionaries, or an empty list if none are found or an error occurs.
     """
     if not conversation_history:
         return []
@@ -92,13 +92,9 @@ def extract_memories_from_turn(conversation_history: List[dict]) -> List[Fact]:
         response_content = response.choices[0].message.content
         print(f"<--- LLM Response: {response_content}")
 
-        # Safely parse the JSON response from the model
         response_data = json.loads(response_content)
-        raw_facts = response_data.get("facts", [])
-
-        # Validate each fact using the Pydantic model
-        validated_facts = [Fact(**fact) for fact in raw_facts]
-        return validated_facts
+        extracted_facts = response_data.get("facts", [])
+        return extracted_facts
 
     except (json.JSONDecodeError, openai.APIError, Exception) as e:
         print(f"[ERROR] Could not process turn. Reason: {e}")
@@ -120,19 +116,37 @@ def main():
         conv = conv_store.read(conv_id)
 
         turn_history = []
-        for i, turn in enumerate(conv.turns, 1):
+        for turn in conv.turns:
             turn_history.append(turn)
 
             extracted_facts = extract_memories_from_turn(turn_history)
             for fact in extracted_facts:
-                turn_identifier = f"conv_{conv.conversation_id}_turn_{i}"
+                previous_memory_id = None
+                previous_value_text = fact.get("previous_value")
+
+                if previous_value_text:
+                    # Search for the memory that this fact is updating
+                    all_memories = memory_store.get_all_memories()
+                    matching_memories = [
+                        mem for mem in all_memories
+                        if mem.content == previous_value_text and mem.conversation_id == conv_id
+                    ]
+                    if matching_memories:
+                        matching_memories.sort(key=lambda m: m.timestamp, reverse=True)
+                        previous_memory_id = matching_memories[0].memory_id
+                        print(f"--- Linked memory update. Previous memory '{previous_memory_id}' found.")
+                    else:
+                         print(f"--- [Warning] LLM provided 'previous_value', but no matching memory was found for content: '{previous_value_text}'")
+
+
                 memory = Memory(
-                    fact_id=f"mem_{uuid.uuid4()}",
-                    content=fact.content,
-                    extracted_from=turn_identifier,
-                    confidence=fact.confidence,
+                    memory_id=f"mem_{uuid.uuid4()}",
+                    content=fact['content'],
+                    conversation_id=conv.conversation_id,
+                    turn_id=turn.turn_id,
+                    confidence=fact['confidence'],
                     timestamp=datetime.now(timezone.utc).isoformat(),
-                    previous_value=fact.previous_value
+                    previous_memory_id=previous_memory_id
                 )
 
                 memory_store.write(memory)
