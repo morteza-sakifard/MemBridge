@@ -7,6 +7,7 @@ from typing import List
 import openai
 from dotenv import load_dotenv
 from models import Conversation, Memory, Fact
+from store import JSONMemoryStore as MemoryStore
 
 load_dotenv()
 
@@ -20,7 +21,6 @@ except KeyError:
 
 MODEL_NAME = "gemini-2.5-pro"
 INPUT_DATA_PATH = "synthetic_data.json"
-OUTPUT_DATA_PATH = "extracted_memories.json"
 
 SYSTEM_PROMPT = """
 You are an expert AI system designed to extract key facts from conversations. Your task is to identify new pieces of information or updates to existing information and structure them as memories.
@@ -84,7 +84,7 @@ def extract_memories_from_turn(conversation_history: List[dict]) -> List[Fact]:
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": f"CONVERSATION:\n{conversation_str}\n\nYOUR RESPONSE:"}
             ],
-            temperature=0.0,  # Low temperature for deterministic, factual extraction
+            temperature=0.0,
             response_format={"type": "json_object"},
         )
 
@@ -105,17 +105,11 @@ def extract_memories_from_turn(conversation_history: List[dict]) -> List[Fact]:
 
 
 def main():
-    """
-    Main function to run the memory extraction pipeline.
-    1. Loads conversations from a JSON file.
-    2. Iterates through each turn of each conversation.
-    3. Calls the LLM to extract facts.
-    4. Formats them into Memory objects.
-    5. Saves the final list of memories to a JSON file.
-    """
+    store = MemoryStore()
+
     print("Starting memory extraction process...")
 
-    # 1. Load conversations from the input file
+    # Load conversations from the input file
     try:
         with open(INPUT_DATA_PATH, 'r') as f:
             conversations_data = json.load(f)
@@ -125,9 +119,7 @@ def main():
         print(f"[FATAL] Could not load or parse input data file. Error: {e}")
         return
 
-    all_extracted_memories: List[Memory] = []
-
-    # 2. Process each conversation
+    # Process each conversation
     for conv in conversations:
         print(f"\n=========================================")
         print(f"Processing Conversation ID: {conv.conversation_id}")
@@ -137,10 +129,9 @@ def main():
         for i, turn in enumerate(conv.turns, 1):
             turn_history.append(turn)
 
-            # 3. Extract facts from the current state of the conversation
+            # Extract facts from the current state of the conversation
             extracted_facts = extract_memories_from_turn(turn_history)
 
-            # 4. Create full Memory objects from the extracted facts
             for fact in extracted_facts:
                 turn_identifier = f"conv_{conv.conversation_id}_turn_{i}"
                 memory = Memory(
@@ -151,20 +142,10 @@ def main():
                     timestamp=datetime.now(timezone.utc).isoformat(),
                     previous_value=fact.previous_value
                 )
-                all_extracted_memories.append(memory)
+
+                store.write(memory)
                 print(f"+++ Stored new memory: {memory.content}")
 
-    # 5. Save all extracted memories to the output file
-    print("\n-----------------------------------------")
-    print(f"Extraction complete. Total memories stored: {len(all_extracted_memories)}")
-
-    # Convert Pydantic objects to dictionaries for JSON serialization
-    output_data = [mem.model_dump() for mem in all_extracted_memories]
-
-    with open(OUTPUT_DATA_PATH, 'w') as f:
-        json.dump(output_data, f, indent=2)
-
-    print(f"Results saved to '{OUTPUT_DATA_PATH}'.")
     print("-----------------------------------------")
 
 

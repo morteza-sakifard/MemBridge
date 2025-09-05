@@ -46,29 +46,5 @@
     "ground_truth": {
       "fact": "The user has a golden retriever named Leo."
     }
-  },
-  {
-    "conversation_id": "003",
-    "turns": [
-      {
-        "role": "user",
-        "content": "I'm feeling a bit bored lately. Any suggestions for a new skill to learn?"
-      },
-      {
-        "role": "assistant",
-        "content": "Learning a new skill is a great way to challenge yourself! You could try coding, a new language, or perhaps a musical instrument."
-      },
-      {
-        "role": "user",
-        "content": "A musical instrument sounds fun. I actually just started learning to play the ukulele."
-      },
-      {
-        "role": "assistant",
-        "content": "The ukulele is a wonderful instrument! It's known for its cheerful sound. How are you finding it so far?"
-      }
-    ],
-    "ground_truth": {
-      "fact": "The user recently started learning to play the ukulele."
-    }
   }
 ]
