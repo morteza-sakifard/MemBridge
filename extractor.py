@@ -28,9 +28,8 @@ You MUST follow these rules:
 1.  Analyze the conversation provided, paying close attention to the most recent turn.
 2.  Extract facts that represent concrete, declarative statements about the user or the world.
 3.  For each extracted fact, provide a confidence score from 0.0 to 1.0.
-4.  If a new fact corrects or updates a previous fact, you MUST include the `previous_value`.
-5.  Your response MUST be a valid JSON object containing a single key "facts" which is a list of extracted fact objects.
-6.  If no new or updated facts are found in the last turn, return an empty list: `{"facts": []}`.
+4.  Your response MUST be a valid JSON object containing a single key "facts" which is a list of extracted fact objects.
+5.  If no new or updated facts are found in the last turn, return an empty list: `{"facts": []}`.
 
 --- EXAMPLE ---
 CONVERSATION:
@@ -45,8 +44,7 @@ YOUR RESPONSE:
   "facts": [
     {
       "content": "User works at Anthropic.",
-      "confidence": 0.98,
-      "previous_value": "User works at OpenAI."
+      "confidence": 0.98
     }
   ]
 }
@@ -132,26 +130,20 @@ def main():
         for turn in conv.turns:
             turn_history.append(turn)
 
-            extracted_facts = extract_memories_from_turn(turn_history)
-            for fact in extracted_facts:
+            facts = extract_memories_from_turn(turn_history)
+            for fact in facts:
                 previous_memory_id = None
-                previous_value_text = fact.get("previous_value")
 
-                if previous_value_text:
-                    # Search for the memory that this fact is updating
-                    all_memories = memory_store.get_all()
-                    matching_memories = [
-                        mem for mem in all_memories
-                        if mem.content == previous_value_text and mem.conversation_id == conv_id
-                    ]
-                    if matching_memories:
-                        # Sort by timestamp to find the most recent match
-                        matching_memories.sort(key=lambda m: m.timestamp, reverse=True)
-                        previous_memory_id = matching_memories[0].memory_id
-                        print(f"--- Linked memory update. Previous memory '{previous_memory_id}' found.")
-                    else:
-                        print(
-                            f"--- [Warning] LLM provided 'previous_value', but no matching memory was found for content: '{previous_value_text}'")
+                # Search for the memory that this fact is updating
+                all_memories = memory_store.get_all()
+                matching_memories = [
+                    mem for mem in all_memories
+                    if mem.conversation_id == conv_id
+                ]
+
+                if matching_memories:
+                    matching_memories.sort(key=lambda m: m.timestamp, reverse=True)
+                    previous_memory_id = matching_memories[0].memory_id
 
                 memory = Memory(
                     memory_id=next_memory_id,
