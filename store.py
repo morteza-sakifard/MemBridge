@@ -1,175 +1,110 @@
 import json
 import os
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Type, TypeVar, Generic
 
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
-from models import Memory, Conversation
+T = TypeVar('T', bound=BaseModel)
 
 
-class JSONMemoryStore:
-    """A simple memory store that uses a local JSON file for persistence."""
+class JSONStore(Generic[T]):
+    """A generic, simple store for Pydantic models using a local JSON file."""
 
-    def __init__(self, file_path: str = "memory_store.json"):
-        self.file_path = file_path
-        self._memories: Dict[int, Memory] = self._load()
-
-    def _load(self) -> Dict[int, Memory]:
-        """Loads memories from the JSON file if it exists."""
-        if not os.path.exists(self.file_path):
-            return {}
-        try:
-            with open(self.file_path, 'r') as f:
-                data = json.load(f)
-
-            memories: Dict[int, Memory] = {}
-            for mem_data in data:
-                try:
-                    memory = Memory(**mem_data)
-                    memories[memory.memory_id] = memory
-                except ValidationError as e:
-                    print(f"[Warning] Skipping invalid memory data: {mem_data}. Error: {e}")
-            return memories
-        except (json.JSONDecodeError, IOError):
-            return {}
-
-    def _save(self):
-        """Saves the current state of memories to the JSON file."""
-        with open(self.file_path, 'w') as f:
-            # Convert Pydantic models to dicts before saving
-            json.dump([mem.model_dump() for mem in self._memories.values()], f, indent=2)
-
-    def write(self, memory: Memory):
+    def __init__(self, file_path: str, model_class: Type[T], id_attribute: str):
         """
-        Adds a new memory to the store.
-
-        Args:
-            memory: The Memory object to add.
-        """
-        if memory.memory_id in self._memories:
-            print(f"[Warning] Memory with memory_id {memory.memory_id} already exists. Use update instead.")
-            return
-        self._memories[memory.memory_id] = memory
-        self._save()
-        print(f"Memory '{memory.memory_id}' written to JSON store.")
-
-    def read(self, memory_id: int) -> Optional[Memory]:
-        """
-        Reads a single memory by its ID.
-
-        Args:
-            memory_id: The ID of the memory to retrieve.
-
-        Returns:
-            The Memory object if found, otherwise None.
-        """
-        return self._memories.get(memory_id)
-
-    def update(self, memory_id: int, updates: Dict[str, Any]):
-        """
-        Updates an existing memory with new data.
-
-        Args:
-            memory_id: The ID of the memory to update.
-            updates: A dictionary of fields to update.
-        """
-        if memory_id not in self._memories:
-            print(f"[Error] Memory with memory_id {memory_id} not found.")
-            return
-
-        existing_memory = self._memories[memory_id]
-        updated_memory = existing_memory.model_copy(update=updates)
-        self._memories[memory_id] = updated_memory
-
-        self._save()
-        print(f"Memory '{memory_id}' updated in JSON store.")
-
-    def get_all_memories(self) -> List[Memory]:
-        """Returns all memories currently in the store."""
-        return list(self._memories.values())
-
-
-class JSONConversationStore:
-    """A simple store for conversations using a key-value format in a JSON file."""
-
-    def __init__(self, file_path: str = "conversation_store.json"):
-        """
-        Initializes the store.
+        Initializes the generic JSON store.
 
         Args:
             file_path: The path to the JSON file.
+            model_class: The Pydantic model class to store (e.g., Memory).
+            id_attribute: The name of the ID attribute on the model (e.g., "memory_id").
         """
         self.file_path = file_path
-        # The internal representation remains a dictionary for efficient O(1) lookups.
-        self._conversations: Dict[int, Conversation] = self._load()
-        print(f"Store initialized. Loaded {len(self._conversations)} conversations from '{self.file_path}'.")
+        self.model_class = model_class
+        self.id_attribute = id_attribute
+        self._data: Dict[int, T] = self._load()
+        print(
+            f"Store for '{self.model_class.__name__}' initialized. Loaded {len(self._data)} items from '{self.file_path}'.")
 
-    def _load(self) -> Dict[int, Conversation]:
-        """
-        Loads conversations from a JSON file formatted as a list of objects.
-
-        Returns:
-            A dictionary mapping conversation_id to Conversation objects.
-        """
+    def _load(self) -> Dict[int, T]:
+        """Loads items from the JSON file if it exists."""
         if not os.path.exists(self.file_path):
             return {}
         try:
             with open(self.file_path, 'r', encoding='utf-8') as f:
-                # The file is expected to contain a list of conversation dicts
                 data_list = json.load(f)
-                if not isinstance(data_list, list):
-                    print(f"Warning: Data in '{self.file_path}' is not a list. Starting fresh.")
-                    return {}
+            if not isinstance(data_list, list):
+                print(f"[Warning] Data in '{self.file_path}' is not a list. Starting fresh.")
+                return {}
 
-            # Convert the list into a dictionary for fast lookups, validating each item
-            conversations: Dict[int, Conversation] = {}
-            for conv_data in data_list:
+            items: Dict[int, T] = {}
+            for item_data in data_list:
                 try:
-                    conversation = Conversation(**conv_data)
-                    conversations[conversation.conversation_id] = conversation
-                except ValidationError as e:
-                    print(f"[Warning] Skipping invalid conversation data: {conv_data}. Error: {e}")
-            return conversations
-
+                    item = self.model_class(**item_data)
+                    item_id = getattr(item, self.id_attribute)
+                    items[item_id] = item
+                except (ValidationError, AttributeError) as e:
+                    print(f"[Warning] Skipping invalid item data: {item_data}. Error: {e}")
+            return items
         except (json.JSONDecodeError, IOError) as e:
             print(f"Error loading or parsing '{self.file_path}': {e}. Starting with an empty store.")
             return {}
 
     def _save(self):
-        """
-        Saves all conversations to the JSON file as a list of objects.
-        """
+        """Saves the current state of items to the JSON file."""
         with open(self.file_path, 'w', encoding='utf-8') as f:
-            # Convert the dictionary of conversations back into a list for storage.
-            conversation_list = [conv.model_dump() for conv in self._conversations.values()]
-            json.dump(conversation_list, f, indent=2)
+            json.dump([item.model_dump() for item in self._data.values()], f, indent=2)
 
-    def write(self, conversation: Conversation):
+    def write(self, item: T):
         """
-        Adds a new conversation or overwrites an existing one by its ID.
+        Adds a new item or overwrites an existing one by its ID.
 
         Args:
-            conversation: The Conversation object to add or update.
+            item: The Pydantic model instance to add or update.
         """
-        if not isinstance(conversation, Conversation):
-            raise TypeError("Can only write Conversation objects to the store.")
+        if not isinstance(item, self.model_class):
+            raise TypeError(f"Can only write '{self.model_class.__name__}' objects to this store.")
 
-        self._conversations[conversation.conversation_id] = conversation
+        item_id = getattr(item, self.id_attribute)
+        self._data[item_id] = item
         self._save()
-        print(f"Conversation '{conversation.conversation_id}' written to store.")
+        print(f"{self.model_class.__name__} '{item_id}' written to store.")
 
-    def read(self, conversation_id: int) -> Optional[Conversation]:
+    def read(self, item_id: int) -> Optional[T]:
         """
-        Reads a single conversation by its ID.
+        Reads a single item by its ID.
 
         Args:
-            conversation_id: The ID of the conversation to retrieve.
+            item_id: The ID of the item to retrieve.
 
         Returns:
-            The Conversation object if found, otherwise None.
+            The Pydantic model instance if found, otherwise None.
         """
-        return self._conversations.get(conversation_id)
+        return self._data.get(item_id)
+
+    def update(self, item_id: int, updates: Dict[str, Any]):
+        """
+        Updates an existing item with new data.
+
+        Args:
+            item_id: The ID of the item to update.
+            updates: A dictionary of fields to update.
+        """
+        if item_id not in self._data:
+            print(f"[Error] {self.model_class.__name__} with ID {item_id} not found.")
+            return
+
+        existing_item = self._data[item_id]
+        updated_item = existing_item.model_copy(update=updates)
+        self._data[item_id] = updated_item
+
+        self._save()
+        print(f"{self.model_class.__name__} '{item_id}' updated in JSON store.")
+
+    def get_all(self) -> List[T]:
+        """Returns all items currently in the store."""
+        return list(self._data.values())
 
     def list_ids(self) -> List[int]:
-        """Returns a list of all conversation IDs."""
-        return list(self._conversations.keys())
+        """Returns a list of all item IDs."""
+        return list(self._data.keys())

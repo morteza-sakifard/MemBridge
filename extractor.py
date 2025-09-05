@@ -6,9 +6,8 @@ from typing import List, Dict, Any
 import openai
 from dotenv import load_dotenv
 
-from models import Memory, Turn
-from store import JSONConversationStore as ConversationStore
-from store import JSONMemoryStore as MemoryStore
+from models import Conversation, Memory, Turn
+from store import JSONStore
 
 load_dotenv()
 
@@ -102,13 +101,23 @@ def extract_memories_from_turn(conversation_history: List[Turn]) -> List[Dict[st
 
 
 def main():
-    memory_store = MemoryStore()
-    conv_store = ConversationStore()
+    # Instantiate the generic store for memories
+    memory_store = JSONStore[Memory](
+        file_path="memory_store.json",
+        model_class=Memory,
+        id_attribute="memory_id"
+    )
+    # Instantiate the generic store for conversations
+    conv_store = JSONStore[Conversation](
+        file_path="conversation_store.json",
+        model_class=Conversation,
+        id_attribute="conversation_id"
+    )
 
     print("Starting memory extraction process...")
 
     # Find the highest existing memory ID to start new IDs from there
-    all_mem_ids = [mem.memory_id for mem in memory_store.get_all_memories()]
+    all_mem_ids = [mem.memory_id for mem in memory_store.get_all()]
     next_memory_id = max(all_mem_ids) + 1 if all_mem_ids else 1
 
     # Process each conversation
@@ -130,7 +139,7 @@ def main():
 
                 if previous_value_text:
                     # Search for the memory that this fact is updating
-                    all_memories = memory_store.get_all_memories()
+                    all_memories = memory_store.get_all()
                     matching_memories = [
                         mem for mem in all_memories
                         if mem.content == previous_value_text and mem.conversation_id == conv_id
