@@ -11,9 +11,10 @@ from typing import List, Dict, Any
 import openai
 from dotenv import load_dotenv
 
-from embedding import get_embedding
+from embedding import get_embedding, EMBEDDING_DIMENSION
 from models import Conversation, Memory, Turn
 from store import JSONStore
+from vector_store import VectorStore
 
 load_dotenv()
 
@@ -127,6 +128,16 @@ def main():
         file_path="conversation_store.json", model_class=Conversation, id_attribute="conversation_id"
     )
 
+    try:
+        vector_store = VectorStore(
+            db_file=MILVUS_DB_FILE,
+            collection_name=COLLECTION_NAME,
+            vector_dim=EMBEDDING_DIMENSION
+        )
+    except Exception as e:
+        print(f"Halting execution due to vector store initialization error: {e}")
+        return
+
     print("Starting memory extraction process...")
     all_mem_ids = [mem.memory_id for mem in memory_json_store.get_all()]
     next_memory_id = max(all_mem_ids) + 1 if all_mem_ids else 1
@@ -179,6 +190,8 @@ def main():
 
                 memory_json_store.write(memory)
                 print(f"+++ Stored new memory in JSON: {memory.content}")
+
+                vector_store.insert(memory=memory)
 
                 memories_for_this_conv.append(memory)
                 next_memory_id += 1
