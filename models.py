@@ -26,3 +26,4 @@ class Memory(BaseModel):
     confidence: float
     timestamp: str
     previous_memory_id: Optional[int] = None
+    vector: Optional[List[float]] = None

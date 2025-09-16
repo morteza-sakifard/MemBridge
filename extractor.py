@@ -1,3 +1,7 @@
+import warnings
+
+warnings.filterwarnings("ignore", category=UserWarning, message="pkg_resources is deprecated as an API.*")
+
 import json
 import os
 import re
@@ -7,6 +11,7 @@ from typing import List, Dict, Any
 import openai
 from dotenv import load_dotenv
 
+from embedding import get_embedding
 from models import Conversation, Memory, Turn
 from store import JSONStore
 
@@ -18,9 +23,12 @@ try:
         base_url=os.environ["LITELLM_API_BASE"],
     )
 except KeyError:
-    raise ConnectionError("API key or base URL not found. Please check your config.env file.")
+    raise ConnectionError("API key or base URL not found. Please check your .env file.")
 
 MODEL_NAME = "gemini-2.5-pro"
+
+MILVUS_DB_FILE = "memory_store.db"
+COLLECTION_NAME = "memories"
 
 SYSTEM_PROMPT_TEMPLATE = """
 You are an expert AI system designed to extract key facts from conversations. Your task is to identify **new pieces of information** or **updates to existing information** and structure them as memories.
@@ -69,7 +77,6 @@ def format_conversation_for_prompt(turns: List[Turn]) -> str:
     return json.dumps([{"role": t.role, "content": t.content} for t in turns], indent=2)
 
 
-# NEW: Helper function for robust, code-based deduplication.
 def normalize_for_comparison(text: str) -> str:
     """Normalizes text for basic semantic comparison."""
     text = text.lower()
@@ -78,31 +85,21 @@ def normalize_for_comparison(text: str) -> str:
     return text
 
 
-def extract_memories_from_turn(conversation_history: List[Turn], existing_memories: List[Memory]) -> List[Dict[str, Any]]:
+def extract_memories_from_turn(conversation_history: List[Turn], existing_memories: List[Memory]) -> List[
+    Dict[str, Any]]:
     """
     Calls the LLM API to extract facts from the latest turn of a conversation,
     avoiding facts that already exist.
-
-    Args:
-        conversation_history: A list of turn objects representing the conversation so far.
-        existing_memories: A list of memory objects already extracted for this conversation.
-
-    Returns:
-        A list of fact dictionaries, or an empty list if none are found or an error occurs.
     """
     if not conversation_history:
         return []
 
-    if existing_memories:
-        memories_str = json.dumps([{"content": mem.content} for mem in existing_memories], indent=2)
-    else:
-        memories_str = "[]"
-
+    memories_str = json.dumps([{"content": mem.content} for mem in existing_memories],
+                              indent=2) if existing_memories else "[]"
     system_prompt = SYSTEM_PROMPT_TEMPLATE.format(existing_memories=memories_str)
     conversation_str = format_conversation_for_prompt(conversation_history)
 
     print(f"\n---> Analyzing conversation turn {len(conversation_history)}...")
-
     try:
         response = client.chat.completions.create(
             model=MODEL_NAME,
@@ -113,21 +110,17 @@ def extract_memories_from_turn(conversation_history: List[Turn], existing_memori
             temperature=0.0,
             response_format={"type": "json_object"},
         )
-
         response_content = response.choices[0].message.content
         print(f"<--- LLM Response: {response_content}")
-
         response_data = json.loads(response_content)
-        extracted_facts = response_data.get("facts", [])
-        return extracted_facts
-
+        return response_data.get("facts", [])
     except (json.JSONDecodeError, openai.APIError, Exception) as e:
         print(f"[ERROR] Could not process turn. Reason: {e}")
         return []
 
 
 def main():
-    memory_store = JSONStore[Memory](
+    memory_json_store = JSONStore[Memory](
         file_path="memory_store.json", model_class=Memory, id_attribute="memory_id"
     )
     conv_store = JSONStore[Conversation](
@@ -135,7 +128,7 @@ def main():
     )
 
     print("Starting memory extraction process...")
-    all_mem_ids = [mem.memory_id for mem in memory_store.get_all()]
+    all_mem_ids = [mem.memory_id for mem in memory_json_store.get_all()]
     next_memory_id = max(all_mem_ids) + 1 if all_mem_ids else 1
 
     for conv_id in conv_store.list_ids():
@@ -147,30 +140,31 @@ def main():
         if not conv:
             continue
 
-        memories_for_this_conv = [mem for mem in memory_store.get_all() if mem.conversation_id == conv_id]
-        memories_for_this_conv.sort(key=lambda m: m.timestamp) # Ensure chronological order
+        memories_for_this_conv = [mem for mem in memory_json_store.get_all() if mem.conversation_id == conv_id]
+        memories_for_this_conv.sort(key=lambda m: m.timestamp)
 
         turn_history = []
         for turn in conv.turns:
             turn_history.append(turn)
-
             facts = extract_memories_from_turn(turn_history, memories_for_this_conv)
 
             for fact in facts:
-                is_redundant = False
-                normalized_new_fact = normalize_for_comparison(fact['content'])
-
-                for existing_mem in memories_for_this_conv:
-                    normalized_existing = normalize_for_comparison(existing_mem.content)
-                    if normalized_new_fact == normalized_existing:
-                        is_redundant = True
-                        print(f"--- Skipping redundant memory: '{fact['content']}' (similar to mem_id {existing_mem.memory_id})")
-                        break
-
+                is_redundant = any(
+                    normalize_for_comparison(fact['content']) == normalize_for_comparison(mem.content)
+                    for mem in memories_for_this_conv
+                )
                 if is_redundant:
+                    print(f"--- Skipping redundant memory (code-based check): '{fact['content']}'")
                     continue
 
                 previous_memory_id = memories_for_this_conv[-1].memory_id if memories_for_this_conv else None
+
+                print(f"--- Generating embedding for: '{fact['content']}'")
+                embedding_vector = get_embedding(fact['content'], client=client)
+
+                if not embedding_vector:
+                    print(f"[WARNING] Skipping memory due to embedding failure: '{fact['content']}'")
+                    continue
 
                 memory = Memory(
                     memory_id=next_memory_id,
@@ -179,12 +173,14 @@ def main():
                     turn_id=turn.turn_id,
                     confidence=fact['confidence'],
                     timestamp=datetime.now(timezone.utc).isoformat(),
-                    previous_memory_id=previous_memory_id
+                    previous_memory_id=previous_memory_id,
+                    vector=embedding_vector
                 )
 
-                memory_store.write(memory)
+                memory_json_store.write(memory)
+                print(f"+++ Stored new memory in JSON: {memory.content}")
+
                 memories_for_this_conv.append(memory)
-                print(f"+++ Stored new memory: {memory.content}")
                 next_memory_id += 1
 
     print("\n-----------------------------------------")
