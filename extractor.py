@@ -121,6 +121,10 @@ def extract_memories_from_turn(conversation_history: List[Turn], existing_memori
 
 
 def main():
+    memory_json_store = JSONStore[Memory](
+        file_path="memory_store.json", model_class=Memory, id_attribute="memory_id",
+        exclude_on_save={'vector'}
+    )
     conv_store = JSONStore[Conversation](
         file_path="conversation_store.json", model_class=Conversation, id_attribute="conversation_id"
     )
@@ -184,6 +188,9 @@ def main():
                     previous_memory_id=previous_memory_id,
                     vector=embedding_vector
                 )
+
+                memory_json_store.write(memory)
+                print(f"+++ Stored new memory in JSON: {memory.content}")
 
                 vector_store.insert(memory=memory)
 

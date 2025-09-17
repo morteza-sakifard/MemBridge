@@ -1,6 +1,6 @@
 import json
 import os
-from typing import List, Dict, Any, Optional, Type, TypeVar, Generic
+from typing import List, Dict, Any, Optional, Type, TypeVar, Generic, Set
 
 from pydantic import BaseModel, ValidationError
 
@@ -10,7 +10,7 @@ T = TypeVar('T', bound=BaseModel)
 class JSONStore(Generic[T]):
     """A generic, simple store for Pydantic models using a local JSON file."""
 
-    def __init__(self, file_path: str, model_class: Type[T], id_attribute: str):
+    def __init__(self, file_path: str, model_class: Type[T], id_attribute: str, exclude_on_save: Optional[Set[str]] = None):
         """
         Initializes the generic JSON store.
 
@@ -18,10 +18,12 @@ class JSONStore(Generic[T]):
             file_path: The path to the JSON file.
             model_class: The Pydantic model class to store (e.g., Memory).
             id_attribute: The name of the ID attribute on the model (e.g., "memory_id").
+            exclude_on_save: A set of field names to exclude when saving to JSON.
         """
         self.file_path = file_path
         self.model_class = model_class
         self.id_attribute = id_attribute
+        self.exclude_on_save = exclude_on_save or set()
         self._data: Dict[int, T] = self._load()
         print(
             f"Store for '{self.model_class.__name__}' initialized. Loaded {len(self._data)} items from '{self.file_path}'.")
@@ -53,7 +55,7 @@ class JSONStore(Generic[T]):
     def _save(self):
         """Saves the current state of items to the JSON file."""
         with open(self.file_path, 'w', encoding='utf-8') as f:
-            json.dump([item.model_dump() for item in self._data.values()], f, indent=2)
+            json.dump([item.model_dump(exclude=self.exclude_on_save) for item in self._data.values()], f, indent=2)
 
     def write(self, item: T):
         """
