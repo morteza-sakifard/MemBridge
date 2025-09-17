@@ -121,9 +121,6 @@ def extract_memories_from_turn(conversation_history: List[Turn], existing_memori
 
 
 def main():
-    memory_json_store = JSONStore[Memory](
-        file_path="memory_store.json", model_class=Memory, id_attribute="memory_id"
-    )
     conv_store = JSONStore[Conversation](
         file_path="conversation_store.json", model_class=Conversation, id_attribute="conversation_id"
     )
@@ -138,7 +135,8 @@ def main():
         return
 
     print("Starting memory extraction process...")
-    all_mem_ids = [mem.memory_id for mem in memory_json_store.get_all()]
+    all_memories = vector_store.get_all()
+    all_mem_ids = [mem.memory_id for mem in all_memories]
     next_memory_id = max(all_mem_ids) + 1 if all_mem_ids else 1
 
     for conv_id in conv_store.list_ids():
@@ -150,7 +148,7 @@ def main():
         if not conv:
             continue
 
-        memories_for_this_conv = [mem for mem in memory_json_store.get_all() if mem.conversation_id == conv_id]
+        memories_for_this_conv = [mem for mem in all_memories if mem.conversation_id == conv_id]
         memories_for_this_conv.sort(key=lambda m: m.timestamp)
 
         turn_history = []
@@ -186,9 +184,6 @@ def main():
                     previous_memory_id=previous_memory_id,
                     vector=embedding_vector
                 )
-
-                memory_json_store.write(memory)
-                print(f"+++ Stored new memory in JSON: {memory.content}")
 
                 vector_store.insert(memory=memory)
 

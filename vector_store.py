@@ -1,11 +1,13 @@
 import chromadb
+from typing import List, Optional
 
 from models import Memory
 
 
 class VectorStore:
     """
-    A client for interacting with a local ChromaDB vector database.
+    A client for interacting with a local ChromaDB vector database,
+    acting as the primary store for Memory objects.
     """
 
     def __init__(self, db_path: str, collection_name: str):
@@ -48,6 +50,49 @@ class VectorStore:
                 embeddings=[memory.vector],
                 metadatas=[metadata]
             )
-            print(f"Successfully inserted vector for memory_id '{memory.memory_id}' into ChromaDB.")
+            print(f"Successfully inserted memory_id '{memory.memory_id}' into ChromaDB.")
         except Exception as e:
             print(f"[ERROR] Failed to insert data into ChromaDB for memory_id {memory.memory_id}: {e}")
+
+    def get(self, memory_id: int) -> Optional[Memory]:
+        """
+        Retrieves a single memory from ChromaDB by its ID.
+
+        Args:
+            memory_id: The ID of the memory to retrieve.
+
+        Returns:
+            The reconstructed Memory Pydantic model instance, or None if not found.
+        """
+        result = self.collection.get(ids=[str(memory_id)], include=["metadatas", "embeddings"])
+
+        if not result or not result['ids']:
+            return None
+
+        metadata = result['metadatas'][0]
+        vector = result['embeddings'][0]
+
+        memory_data = {**metadata, "vector": vector}
+        return Memory(**memory_data)
+
+    def get_all(self) -> List[Memory]:
+        """
+        Retrieves all memories from the collection.
+
+        Note: This can be memory-intensive for very large collections.
+        For production, consider pagination or streaming.
+        """
+        count = self.collection.count()
+        if count == 0:
+            return []
+
+        result = self.collection.get(limit=count, include=["metadatas", "embeddings"])
+
+        memories: List[Memory] = []
+        for metadata, vector in zip(result['metadatas'], result['embeddings']):
+            try:
+                memory_data = {**metadata, "vector": vector}
+                memories.append(Memory(**memory_data))
+            except Exception as e:
+                print(f"[WARNING] Could not reconstruct memory from metadata: {metadata}. Error: {e}")
+        return memories
