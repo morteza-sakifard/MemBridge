@@ -3,8 +3,6 @@ from typing import List, Optional
 import openai
 
 EMBEDDING_MODEL = "gemini-embedding"
-EMBEDDING_DIMENSION = 768
-
 
 def get_embedding(text: str, client: openai.OpenAI) -> Optional[List[float]]:
     """

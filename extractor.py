@@ -11,7 +11,7 @@ from typing import List, Dict, Any
 import openai
 from dotenv import load_dotenv
 
-from embedding import get_embedding, EMBEDDING_DIMENSION
+from embedding import get_embedding
 from models import Conversation, Memory, Turn
 from store import JSONStore
 from vector_store import VectorStore
@@ -28,7 +28,7 @@ except KeyError:
 
 MODEL_NAME = "gemini-2.5-pro"
 
-MILVUS_DB_FILE = "memory_store.db"
+MEMORY_DB_PATH = "memory_store"
 COLLECTION_NAME = "memories"
 
 SYSTEM_PROMPT_TEMPLATE = """
@@ -130,9 +130,8 @@ def main():
 
     try:
         vector_store = VectorStore(
-            db_file=MILVUS_DB_FILE,
-            collection_name=COLLECTION_NAME,
-            vector_dim=EMBEDDING_DIMENSION
+            db_path=MEMORY_DB_PATH,
+            collection_name=COLLECTION_NAME
         )
     except Exception as e:
         print(f"Halting execution due to vector store initialization error: {e}")
