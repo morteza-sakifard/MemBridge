@@ -1,5 +1,5 @@
 import chromadb
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 from models import Memory
 
@@ -89,10 +89,47 @@ class VectorStore:
         result = self.collection.get(limit=count, include=["metadatas", "embeddings"])
 
         memories: List[Memory] = []
-        for metadata, vector in zip(result['metadatas'], result['embeddings']):
-            try:
-                memory_data = {**metadata, "vector": vector}
-                memories.append(Memory(**memory_data))
-            except Exception as e:
-                print(f"[WARNING] Could not reconstruct memory from metadata: {metadata}. Error: {e}")
+        if result['metadatas'] and result['embeddings']:
+            for metadata, vector in zip(result['metadatas'], result['embeddings']):
+                try:
+                    memory_data = {**metadata, "vector": vector}
+                    memories.append(Memory(**memory_data))
+                except Exception as e:
+                    print(f"[WARNING] Could not reconstruct memory from metadata: {metadata}. Error: {e}")
         return memories
+
+    def search(self, query_vector: List[float], top_k: int) -> Optional[Dict]:
+        """
+        Performs a similarity search in the collection.
+
+        Args:
+            query_vector: The embedding vector of the query.
+            top_k: The number of top results to return.
+
+        Returns:
+            A dictionary containing the search results from ChromaDB,
+            including ids, distances, metadatas, and embeddings.
+            Returns None if no results are found or an error occurs.
+        """
+        if not query_vector:
+            print("[WARNING] Query vector is empty. Cannot perform search.")
+            return None
+        try:
+            num_items = self.collection.count()
+            if top_k > num_items:
+                print(f"[INFO] Requested top_k={top_k} is larger than collection size={num_items}. "
+                      f"Returning {num_items} items instead.")
+                top_k = num_items
+
+            if top_k == 0:
+                return None
+
+            results = self.collection.query(
+                query_embeddings=[query_vector],
+                n_results=top_k,
+                include=["metadatas", "distances", "embeddings"]
+            )
+            return results
+        except Exception as e:
+            print(f"[ERROR] Failed to perform search in ChromaDB: {e}")
+            return None
