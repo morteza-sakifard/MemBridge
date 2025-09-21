@@ -1,0 +1,106 @@
+[
+  {
+    "memory_id": 1,
+    "conversation_id": 1,
+    "turn_id": 1,
+    "memory_content": "The user has a new office.",
+    "evaluation": {
+      "is_correct": true,
+      "is_relevant": true,
+      "is_atomic": true,
+      "score": 4,
+      "justification": "The memory is a correct and atomic fact directly stated by the user, though its long-term relevance is limited as the 'new' status of the office is temporary."
+    }
+  },
+  {
+    "memory_id": 2,
+    "conversation_id": 1,
+    "turn_id": 3,
+    "memory_content": "The user wants to create a calm and focused atmosphere in their office.",
+    "evaluation": {
+      "is_correct": true,
+      "is_relevant": true,
+      "is_atomic": true,
+      "score": 5,
+      "justification": "The memory accurately captures the user's primary goal for their office environment, which was explicitly stated in the conversation."
+    }
+  },
+  {
+    "memory_id": 3,
+    "conversation_id": 1,
+    "turn_id": 3,
+    "memory_content": "The user's favorite color is forest green.",
+    "evaluation": {
+      "is_correct": true,
+      "is_relevant": true,
+      "is_atomic": true,
+      "score": 5,
+      "justification": "The memory accurately captures a key user preference that was explicitly stated in the conversation."
+    }
+  },
+  {
+    "memory_id": 4,
+    "conversation_id": 2,
+    "turn_id": 2,
+    "memory_content": "The user owns a sedan.",
+    "evaluation": {
+      "is_correct": false,
+      "is_relevant": true,
+      "is_atomic": true,
+      "score": 1,
+      "justification": "The memory is factually incorrect as the user explicitly states in the following turn that they no longer own a sedan."
+    }
+  },
+  {
+    "memory_id": 5,
+    "conversation_id": 2,
+    "turn_id": 3,
+    "memory_content": "The user drives an SUV.",
+    "evaluation": {
+      "is_correct": true,
+      "is_relevant": true,
+      "is_atomic": true,
+      "score": 5,
+      "justification": "The memory accurately captures a specific, relevant fact about the user's vehicle that was explicitly stated in the conversation."
+    }
+  },
+  {
+    "memory_id": 6,
+    "conversation_id": 3,
+    "turn_id": 2,
+    "memory_content": "The user is learning to code in Python.",
+    "evaluation": {
+      "is_correct": true,
+      "is_relevant": true,
+      "is_atomic": true,
+      "score": 5,
+      "justification": "The memory correctly and atomically captures the user's relevant skill development based on their request to practice Python."
+    }
+  },
+  {
+    "memory_id": 7,
+    "conversation_id": 3,
+    "turn_id": 2,
+    "memory_content": "The user is a fantasy football fan.",
+    "evaluation": {
+      "is_correct": true,
+      "is_relevant": true,
+      "is_atomic": true,
+      "score": 5,
+      "justification": "The memory accurately captures a key user interest that was stated by the assistant and confirmed by the user's enthusiastic response."
+    }
+  },
+  {
+    "memory_id": 8,
+    "conversation_id": 3,
+    "turn_id": 3,
+    "memory_content": "The user participates in a fantasy football league.",
+    "evaluation": {
+      "is_correct": true,
+      "is_relevant": true,
+      "is_atomic": true,
+      "score": 5,
+      "justification": "The memory correctly identifies a key user hobby, which the user explicitly confirms by mentioning their 'league-mates'."
+    }
+  }
+]

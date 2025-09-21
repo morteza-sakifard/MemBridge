@@ -1,0 +1,74 @@
+[
+  {
+    "memory_id": 1,
+    "content": "The user has a new office.",
+    "conversation_id": 1,
+    "turn_id": 1,
+    "confidence": 0.95,
+    "timestamp": "2025-09-19T17:05:30.479359+00:00",
+    "previous_memory_id": null
+  },
+  {
+    "memory_id": 2,
+    "content": "The user wants to create a calm and focused atmosphere in their office.",
+    "conversation_id": 1,
+    "turn_id": 3,
+    "confidence": 0.95,
+    "timestamp": "2025-09-19T17:05:43.389807+00:00",
+    "previous_memory_id": 1
+  },
+  {
+    "memory_id": 3,
+    "content": "The user's favorite color is forest green.",
+    "conversation_id": 1,
+    "turn_id": 3,
+    "confidence": 1.0,
+    "timestamp": "2025-09-19T17:05:44.158183+00:00",
+    "previous_memory_id": 2
+  },
+  {
+    "memory_id": 4,
+    "content": "The user owns a sedan.",
+    "conversation_id": 2,
+    "turn_id": 2,
+    "confidence": 0.85,
+    "timestamp": "2025-09-19T17:06:08.419498+00:00",
+    "previous_memory_id": null
+  },
+  {
+    "memory_id": 5,
+    "content": "The user drives an SUV.",
+    "conversation_id": 2,
+    "turn_id": 3,
+    "confidence": 1.0,
+    "timestamp": "2025-09-19T17:06:19.991035+00:00",
+    "previous_memory_id": 4
+  },
+  {
+    "memory_id": 6,
+    "content": "The user is learning to code in Python.",
+    "conversation_id": 3,
+    "turn_id": 2,
+    "confidence": 0.95,
+    "timestamp": "2025-09-19T17:06:40.505744+00:00",
+    "previous_memory_id": null
+  },
+  {
+    "memory_id": 7,
+    "content": "The user is a fantasy football fan.",
+    "conversation_id": 3,
+    "turn_id": 2,
+    "confidence": 0.95,
+    "timestamp": "2025-09-19T17:06:41.932764+00:00",
+    "previous_memory_id": 6
+  },
+  {
+    "memory_id": 8,
+    "content": "The user participates in a fantasy football league.",
+    "conversation_id": 3,
+    "turn_id": 3,
+    "confidence": 1.0,
+    "timestamp": "2025-09-19T17:06:51.901605+00:00",
+    "previous_memory_id": 7
+  }
+]
