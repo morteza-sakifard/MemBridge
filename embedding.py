@@ -4,6 +4,7 @@ import openai
 
 EMBEDDING_MODEL = "gemini-embedding"
 
+
 def get_embedding(text: str, client: openai.OpenAI) -> Optional[List[float]]:
     """
     Generates an embedding for the given text using an OpenAI-compatible API.

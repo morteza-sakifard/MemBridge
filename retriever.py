@@ -78,7 +78,7 @@ class Retriever:
                 memory_data = {**metadatas[i], "vector": embeddings[i]}
                 memory = Memory(**memory_data)
 
-                result = RetrievalResult(memory=memory, score=1-distances[i])
+                result = RetrievalResult(memory=memory, score=1 - distances[i])
                 retrieved_memories.append(result)
 
             except Exception as e:

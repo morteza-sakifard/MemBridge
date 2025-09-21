@@ -1,5 +1,6 @@
-import chromadb
 from typing import List, Optional, Dict
+
+import chromadb
 
 from models import Memory
 

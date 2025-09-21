@@ -10,7 +10,8 @@ T = TypeVar('T', bound=BaseModel)
 class JSONStore(Generic[T]):
     """A generic, simple store for Pydantic models using a local JSON file."""
 
-    def __init__(self, file_path: str, model_class: Type[T], id_attribute: str, exclude_on_save: Optional[Set[str]] = None):
+    def __init__(self, file_path: str, model_class: Type[T], id_attribute: str,
+                 exclude_on_save: Optional[Set[str]] = None):
         """
         Initializes the generic JSON store.
 

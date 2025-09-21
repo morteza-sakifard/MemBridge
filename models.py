@@ -14,7 +14,6 @@ class Conversation(BaseModel):
     """Represents a full conversation with multiple turns and ground truth."""
     conversation_id: int
     turns: List[Turn]
-    ground_truth: dict
 
 
 class Memory(BaseModel):
